@@ -1,18 +1,25 @@
 #define GLEW_STATIC
 #include "glew.h"
 #include <GLFW/glfw3.h>
-#include <iostream>
 #include <vector>
+#include <map>
 #include <string>
+#include <iostream>
+#include <sstream>
+#include <fstream>
 #include "../libs/glm/gtc/matrix_transform.hpp"
-#include "ShaderProgram.h"
+#include "../libs/glm/gtc/type_ptr.hpp"
+
 
 GLFWwindow* mainWindow = NULL;
 int mainWindowHeight = 1080;
 int mainWindowWidth = 1920;
 
-const std::string vShader = "shaders/basic.vert";
-const std::string fShader = "shaders/basic.frag";
+GLuint shaderProgram = 0;
+const int SHADER = 0;
+const int PROGRAM = 1;
+std::map<std::string, int> uniformArrayLocations;
+
 const std::string bumpMap = "../textures/Mega_Bump.tga";
 std::vector<GLfloat> landVertices;
 std::vector<GLuint> landIndex;
@@ -23,10 +30,11 @@ float camPitch = 0.f;
 float camRadius = 10.f;
 float yawRad;
 float pitchRad;
+
 glm::vec3 camPosition = glm::vec3(0.f, 0.f, 0.f);
-glm::vec3 camTargetPos = glm::vec3(0.f, 0.f, 0.f);
+//glm::vec3 camTargetPos = glm::vec3(0.f, 0.f, 0.f);
 glm::vec3 camUp = glm::vec3(0.f, 1.f, 0.f);
-glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -15.f);
+glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -5.f);
 
 bool Initialize();
 void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -34,8 +42,13 @@ void OnMouseMove(GLFWwindow* window, double posX, double posY);
 void MoveCamera(float dYaw, float dPitch);
 void OnFrameBufferSize(GLFWwindow* window, int width, int height);
 void LoadBuffer(GLuint& vbo, GLuint& vao, GLuint& ibo);
-GLfloat Quad(int i);
-GLuint QuadIndices(int i);
+void CompileShaders(const char* vShader, const char* fShader);
+std::string FileToString(const std::string& filename);
+void ShaderCompilationCheck(unsigned int shader, int type);
+void SetUniform(const char* name, glm::mat4 &matrix);
+
+GLfloat Quad(int i);			// DEBUGGING
+GLuint QuadIndices(int i);		// DEBUGGING
 
 
 int main()
@@ -44,9 +57,7 @@ int main()
 		return -1;
 	
 	LoadBuffer(vbo, vao, ibo);
-
-	ShaderProgram shaderProgram;
-	shaderProgram.LoadShaders("../shaders/basic.vert", "../shaders/basic.frag");
+	CompileShaders("source/basicOrbCam.vert", "source/fixedColor.frag");
 
 	while (!glfwWindowShouldClose(mainWindow))
 	{
@@ -56,10 +67,11 @@ int main()
 		model = glm::translate(model, subjectPos);
 		view = glm::lookAt(camPosition, subjectPos, camUp);
 		projection = glm::perspective(glm::radians(45.f), (float)mainWindowWidth / (float)mainWindowHeight, 0.1f, 100.f);
-		shaderProgram.Use();
-		shaderProgram.SetUniform("model", model);
-		shaderProgram.SetUniform("view", view);
-		shaderProgram.SetUniform("projection", projection);
+		
+		glUseProgram(shaderProgram);
+		SetUniform("model", model);
+		SetUniform("view", view);
+		SetUniform("projection", projection);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -69,6 +81,7 @@ int main()
 		glfwPollEvents();
 	}
 
+	glDeleteProgram(shaderProgram);
 	glDeleteVertexArrays(1, &vao);
 	glDeleteBuffers(1, &vbo);
 	glDeleteBuffers(1, &ibo);
@@ -104,7 +117,7 @@ bool Initialize()
 		return false;
 	}
 
-	glClearColor(0.1f, 0.05f, 0.f, 1.f);
+	glClearColor(0.05f, 0.f, 0.f, 1.f);
 	glViewport(0, 0, mainWindowWidth, mainWindowHeight);
 	//glEnable(GL_DEPTH_TEST);
 
@@ -160,9 +173,9 @@ void OnFrameBufferSize(GLFWwindow* window, int width, int height)
 void LoadBuffer(GLuint& vbo, GLuint& vao, GLuint& ibo)
 {
 	for (int i = 0; i < 12; i++)
-		landVertices.push_back(Quad(i));
+		landVertices.push_back(Quad(i));			// DEBUGGING
 	for (int i = 0; i < 6; i++)
-		landIndex.push_back(QuadIndices(i));
+		landIndex.push_back(QuadIndices(i));		// DEBUGGING
 
 	GLfloat* data = &landVertices[0];
 	GLuint* indexData = &landIndex[0];
@@ -172,18 +185,117 @@ void LoadBuffer(GLuint& vbo, GLuint& vao, GLuint& ibo)
 	glBufferData(GL_ARRAY_BUFFER, landVertices.size() * sizeof(GLfloat), data, GL_STATIC_DRAW);
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, NULL);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(0);
 	glGenBuffers(1, &ibo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, landIndex.size() * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 }
 
+void CompileShaders(const char* vShader, const char* fShader)
+{
+	std::string vsString = FileToString(vShader);
+	std::string fsString = FileToString(fShader);
+	const char* vsSourcePtr = vsString.c_str();
+	const char* fsSourcePtr = fsString.c_str();
+
+	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(vs, 1, &vsSourcePtr, NULL);
+	glShaderSource(fs, 1, &fsSourcePtr, NULL);
+	glCompileShader(vs);
+	ShaderCompilationCheck(vs, SHADER);
+	glCompileShader(fs);
+	ShaderCompilationCheck(fs, SHADER);
+	shaderProgram = glCreateProgram();
+	glAttachShader(shaderProgram, vs);
+	glAttachShader(shaderProgram, fs);
+	glLinkProgram(shaderProgram);
+	ShaderCompilationCheck(shaderProgram, PROGRAM);
+	glDeleteShader(vs);
+	glDeleteShader(fs);
+}
+
+std::string FileToString(const std::string &filename)
+{
+	std::stringstream ss;
+	std::ifstream file;
+
+	try
+	{
+		file.open(filename, std::ios::in);
+		if (!file.fail())
+		{
+			ss << file.rdbuf();
+		}
+
+		file.close();
+	}
+	catch (std::exception err)
+	{
+		std::cerr << "Error reading shader filename." << std::endl;
+	}
+
+	return ss.str();
+}
+
+void ShaderCompilationCheck(unsigned int shader, int type)
+{
+	int status = 0;
+	switch (type)
+	{
+		case SHADER:
+			glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+			if (status == GL_FALSE)
+			{
+				int length = 0;
+				glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
+				std::string errorlog(length, ' ');
+				glGetShaderInfoLog(shader, length, &length, &errorlog[0]);
+				std::cout << "Shader failed to compile. " << errorlog << std::endl;
+			}
+			break;
+		case PROGRAM:
+			glGetProgramiv(shader, GL_LINK_STATUS, &status);
+			if (status == GL_FALSE)
+			{
+				int length = 0;
+				glGetProgramiv(shader, GL_INFO_LOG_LENGTH, &length);
+				std::string errorlog(length, ' ');
+				glGetProgramInfoLog(shader, length, &length, &errorlog[0]);
+				std::cout << "Shader Program Linker failure. " << errorlog << std::endl;
+			}
+			break;
+		default:
+			std::cout << "Shader Compilation Check misuse." << std::endl;
+			break;
+	}
+}
+
+void SetUniform(const char* name, glm::mat4 &matrix)
+{
+	int element = -1;
+	for (const auto pair : uniformArrayLocations)
+	{
+		if (pair.first == name)
+			element = pair.second;
+	}
+	if (element < 0)
+	{
+		element = glGetUniformLocation(shaderProgram, name);
+		uniformArrayLocations[name] = element;
+	}
+
+	glUniformMatrix4fv(element, 1, GL_FALSE, glm::value_ptr(matrix));
+}
+
+
+// The functions below are for debugging purposes only!
 GLfloat Quad(int i)
 {
 	static GLfloat a[] = {
 		//  X       Y       Z
-			0.5f,   0.5f,   0.f,
+			-0.5f,   0.5f,   0.f,
 			0.5f,   0.5f,   0.f,
 			0.5f,   -0.5f,  0.f,
 			-0.5f,  -0.5f,  0.f
