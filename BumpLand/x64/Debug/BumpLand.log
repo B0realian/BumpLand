@@ -1,3 +1,0 @@
-﻿  main.cpp
-C:\CPP\BumpLand\source\main.cpp(123,45): warning C4244: 'argument': conversion from 'double' to 'int', possible loss of data
-  BumpLand.vcxproj -> C:\CPP\BumpLand\x64\Debug\BumpLand.exe
