@@ -9,6 +9,7 @@
 #include <fstream>
 #include "../libs/glm/gtc/matrix_transform.hpp"
 #include "../libs/glm/gtc/type_ptr.hpp"
+#include "Terrabumper.h"
 
 
 GLFWwindow* mainWindow = NULL;
@@ -20,9 +21,9 @@ const int SHADER = 0;
 const int PROGRAM = 1;
 std::map<std::string, int> uniformArrayLocations;
 
-const std::string bumpMap = "../textures/Mega_Bump.tga";
-std::vector<GLfloat> landVertices;
-std::vector<GLuint> landIndex;
+const std::string bumpMap = "textures/Mega_Bump.tga";
+//std::vector<GLfloat> landVertices;
+//std::vector<GLuint> landIndex;
 GLuint vbo, vao, ibo;
 
 float camYaw = 0.f;
@@ -34,18 +35,18 @@ float pitchRad;
 glm::vec3 camPosition = glm::vec3(0.f, 0.f, 0.f);
 //glm::vec3 camTargetPos = glm::vec3(0.f, 0.f, 0.f);
 glm::vec3 camUp = glm::vec3(0.f, 1.f, 0.f);
-glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -5.f);
+glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -50.f);
 
 bool Initialize();
-void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode);
-void OnMouseMove(GLFWwindow* window, double posX, double posY);
-void MoveCamera(float dYaw, float dPitch);
-void OnFrameBufferSize(GLFWwindow* window, int width, int height);
-void LoadBuffer(GLuint& vbo, GLuint& vao, GLuint& ibo);
+void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo);
 void CompileShaders(const char* vShader, const char* fShader);
 std::string FileToString(const std::string& filename);
 void ShaderCompilationCheck(unsigned int shader, int type);
 void SetUniform(const char* name, glm::mat4 &matrix);
+void MoveCamera(float dYaw, float dPitch);
+void OnFrameBufferSize(GLFWwindow* window, int width, int height);
+void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode);
+void OnMouseMove(GLFWwindow* window, double posX, double posY);
 
 GLfloat Quad(int i);			// DEBUGGING
 GLuint QuadIndices(int i);		// DEBUGGING
@@ -55,8 +56,12 @@ int main()
 {
 	if (!Initialize())
 		return -1;
+
+	Terrabumper terrabumper;
+	if (!terrabumper.LoadTGA(bumpMap))
+		return -2;
 	
-	LoadBuffer(vbo, vao, ibo);
+	LoadBuffer(terrabumper, vbo, vao, ibo);
 	CompileShaders("source/basicOrbCam.vert", "source/fixedColor.frag");
 
 	while (!glfwWindowShouldClose(mainWindow))
@@ -74,7 +79,7 @@ int main()
 		SetUniform("projection", projection);
 
 		glBindVertexArray(vao);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, terrabumper.vertexIndex.size(), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 
 		glfwSwapBuffers(mainWindow);
@@ -124,72 +129,26 @@ bool Initialize()
 	return true;
 }
 
-
-void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode)
+void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo)
 {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-		glfwSetWindowShouldClose(window, GL_TRUE);
-}
+	//for (int i = 0; i < 12; i++)
+	//	landVertices.push_back(Quad(i));			// DEBUGGING
+	//for (int i = 0; i < 6; i++)
+	//	landIndex.push_back(QuadIndices(i));		// DEBUGGING
 
-void OnMouseMove(GLFWwindow* window, double posX, double posY)
-{
-	static glm::vec2 lastMousePos = glm::vec2(0.f, 0.f);
-
-	if (glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_LEFT) == 1)
-	{
-		camYaw -= ((float)posX - lastMousePos.x) * 0.25f;
-		camPitch += ((float)posY - lastMousePos.y) * 0.25f;
-	}
-
-	if (glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_RIGHT) == 1)
-	{
-		float dX = 0.01f * ((float)posX - lastMousePos.x);
-		float dY = 0.01f * ((float)posY - lastMousePos.y);
-		camRadius += dX - dY;
-	}
-
-	lastMousePos.x = (float)posX;
-	lastMousePos.y = (float)posY;
-}
-
-void MoveCamera(float dYaw, float dPitch)
-{
-	dPitch = glm::clamp(dPitch, -90.f, 90.f);
-	yawRad = glm::radians(dYaw);
-	pitchRad = glm::radians(dPitch);
-
-	camPosition.x = subjectPos.x + camRadius * cosf(pitchRad) * sinf(yawRad);
-	camPosition.y = subjectPos.y + camRadius * sinf(pitchRad);
-	camPosition.z = subjectPos.z + camRadius * cosf(pitchRad) * cosf(yawRad);
-}
-
-void OnFrameBufferSize(GLFWwindow* window, int width, int height)
-{
-	mainWindowWidth = width;
-	mainWindowHeight = height;
-	glViewport(0, 0, mainWindowWidth, mainWindowHeight);
-}
-
-void LoadBuffer(GLuint& vbo, GLuint& vao, GLuint& ibo)
-{
-	for (int i = 0; i < 12; i++)
-		landVertices.push_back(Quad(i));			// DEBUGGING
-	for (int i = 0; i < 6; i++)
-		landIndex.push_back(QuadIndices(i));		// DEBUGGING
-
-	GLfloat* data = &landVertices[0];
-	GLuint* indexData = &landIndex[0];
+	GLfloat* data = &landscape.vertices[0];
+	GLuint* indexData = &landscape.vertexIndex[0];
 
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, landVertices.size() * sizeof(GLfloat), data, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, landscape.vertices.size() * sizeof(GLfloat), data, GL_STATIC_DRAW);
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(0);
 	glGenBuffers(1, &ibo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, landIndex.size() * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, landscape.vertexIndex.size() * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 }
 
 void CompileShaders(const char* vShader, const char* fShader)
@@ -289,6 +248,50 @@ void SetUniform(const char* name, glm::mat4 &matrix)
 	glUniformMatrix4fv(element, 1, GL_FALSE, glm::value_ptr(matrix));
 }
 
+void MoveCamera(float dYaw, float dPitch)
+{
+	dPitch = glm::clamp(dPitch, -90.f, 90.f);
+	yawRad = glm::radians(dYaw);
+	pitchRad = glm::radians(dPitch);
+
+	camPosition.x = subjectPos.x + camRadius * cosf(pitchRad) * sinf(yawRad);
+	camPosition.y = subjectPos.y + camRadius * sinf(pitchRad);
+	camPosition.z = subjectPos.z + camRadius * cosf(pitchRad) * cosf(yawRad);
+}
+
+void OnFrameBufferSize(GLFWwindow* window, int width, int height)
+{
+	mainWindowWidth = width;
+	mainWindowHeight = height;
+	glViewport(0, 0, mainWindowWidth, mainWindowHeight);
+}
+
+void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode)
+{
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, GL_TRUE);
+}
+
+void OnMouseMove(GLFWwindow* window, double posX, double posY)
+{
+	static glm::vec2 lastMousePos = glm::vec2(0.f, 0.f);
+
+	if (glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_LEFT) == 1)
+	{
+		camYaw -= ((float)posX - lastMousePos.x) * 0.25f;
+		camPitch += ((float)posY - lastMousePos.y) * 0.25f;
+	}
+
+	if (glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_RIGHT) == 1)
+	{
+		float dX = 0.01f * ((float)posX - lastMousePos.x);
+		float dY = 0.01f * ((float)posY - lastMousePos.y);
+		camRadius += dX - dY;
+	}
+
+	lastMousePos.x = (float)posX;
+	lastMousePos.y = (float)posY;
+}
 
 // The functions below are for debugging purposes only!
 GLfloat Quad(int i)

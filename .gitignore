@@ -1,6 +1,7 @@
 .vs/
 BumpLand/
 x64/
+logs/
 *.sln
 *.vcxproj
 *.vcxproj.filters
