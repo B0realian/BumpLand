@@ -20,10 +20,10 @@ GLuint shaderProgram = 0;
 const int SHADER = 0;
 const int PROGRAM = 1;
 std::map<std::string, int> uniformArrayLocations;
+bool bWireFrameMode = false;
 
 const std::string bumpMap = "textures/Mega_Bump.tga";
-//std::vector<GLfloat> landVertices;
-//std::vector<GLuint> landIndex;
+const std::string testMap = "textures/checker16.tga";
 GLuint vbo, vao, ibo;
 
 float camYaw = 0.f;
@@ -33,7 +33,6 @@ float yawRad;
 float pitchRad;
 
 glm::vec3 camPosition = glm::vec3(0.f, 0.f, 0.f);
-//glm::vec3 camTargetPos = glm::vec3(0.f, 0.f, 0.f);
 glm::vec3 camUp = glm::vec3(0.f, 1.f, 0.f);
 glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -50.f);
 
@@ -270,6 +269,14 @@ void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode)
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GL_TRUE);
+	if (key == GLFW_KEY_W && action == GLFW_PRESS)
+	{
+		bWireFrameMode = !bWireFrameMode;
+		if (bWireFrameMode)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		else
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
 }
 
 void OnMouseMove(GLFWwindow* window, double posX, double posY)

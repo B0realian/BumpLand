@@ -15,6 +15,7 @@ public:
 	int imageHeight;
 	int bytesPerPixel;
 	int imageSize;
+	int triangles;
 	std::vector<float> vertices;
 	std::vector<unsigned int> vertexIndex;
 
@@ -26,6 +27,7 @@ private:
 
 	bool tgaCompressed;
 	unsigned char tgaHeader[18];
+	float heightScale = 0.00005f;
 	std::vector<unsigned char> imageData;
 
 };

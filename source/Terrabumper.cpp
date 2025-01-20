@@ -1,6 +1,7 @@
 #include "Terrabumper.h"
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
 
 bool Terrabumper::LoadTGA(const std::string &filename)
@@ -30,11 +31,17 @@ bool Terrabumper::LoadTGA(const std::string &filename)
 		imageFile.read((char*)&tempContainer, 1);
 		imageData.push_back(tempContainer);
 	}
+	
+	/*std::ofstream imageStream;
+	imageStream.open("logs/imageDebug.log");
+	for (int i = 0; i < imageData.size(); i += 3)
+		imageStream << imageData[i] << " ";
+	imageStream.close();*/
 
 	Terraform(imageData, bytesPerPixel);
 
 	imageFile.close();
-	SaveFile();
+	// SaveFile();			// WARNING!!! This will write some pretty big log files.
 	return true;
 }
 
@@ -76,13 +83,15 @@ void Terrabumper::Terraform(const std::vector<unsigned char> &data, int stride)
 	{
 		for (int z = 0; z < rowLength; z += stride)
 		{
-			vertices.push_back((x - halfWidth) / doubleWidth);
-			vertices.push_back((y - halfWidth) / doubleWidth);
-			vertices.push_back(data[z + i] / doubleWidth);
+			vertices.push_back((x - halfWidth) / imageWidth);
+			vertices.push_back((float)data[z + i] * heightScale);
+			vertices.push_back((y - halfWidth) / imageWidth);
 			x++;
 		}
+		x = 0;
 		y++;
 	}
+	std::cout << "Vertices length: " << vertices.size() << std::endl;
 
 	for (int i = 0; i < (imageHeight - 1); i++)
 	{
@@ -96,15 +105,21 @@ void Terrabumper::Terraform(const std::vector<unsigned char> &data, int stride)
 			vertexIndex.push_back(j + imageWidth + 1 + (i * imageWidth));
 		}
 	}
+	triangles = vertexIndex.size() / 3;
+	std::cout << "Index length: " << vertexIndex.size() << std::endl;
+	std::cout << "Amount of triangles: " << triangles << std::endl;
 }
 
 void Terrabumper::SaveFile()
 {
-	std::ofstream saveStream;
-	saveStream.open("logs/vertAndIndexDebug.log");
-	for (int i = 0; i < imageWidth; i += 3)
-	{
-		saveStream << vertices[i] << ", " << vertices[i + 1] << ", " << vertices[i + 2] << ",  ; " << vertexIndex[i] << ", " << vertexIndex[i + 1] << ", " << vertexIndex[i + 2] << ",\n";
-	}
-	saveStream.close();
+	std::ofstream vertStream;
+	vertStream.open("logs/vertDebug.log");
+	for (int i = 0; i < vertices.size(); i += 3)
+		vertStream << std::setw(8) << vertices[i] << ", " << std::setw(8) << vertices[i + 1] << ", " << std::setw(8) << vertices[i + 2] << ",\n";
+	vertStream.close();
+	std::ofstream indexStream;
+	indexStream.open("logs/indexDebug.log");
+	for (int i = 0; i < vertexIndex.size(); i += 3)
+		indexStream << std::setw(8) << vertexIndex[i] << ", " << std::setw(8) << vertexIndex[i + 1] << ", " << std::setw(8) << vertexIndex[i + 2] << ",\n";
+	indexStream.close();
 }
