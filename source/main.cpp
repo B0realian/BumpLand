@@ -13,10 +13,12 @@
 
 
 GLFWwindow* mainWindow = NULL;
+const std::string mainWindowTitle = "BumpLand - Bumpmap to Landscape";
 int mainWindowHeight = 1080;
 int mainWindowWidth = 1920;
 
 GLuint shaderProgram = 0;
+float invHS = 0.f;				// Assigned in LoadBuffer() and set in CompileShaders().
 const int SHADER = 0;
 const int PROGRAM = 1;
 std::map<std::string, int> uniformArrayLocations;
@@ -41,14 +43,13 @@ void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo);
 void CompileShaders(const char* vShader, const char* fShader);
 std::string FileToString(const std::string& filename);
 void ShaderCompilationCheck(unsigned int shader, int type);
+void SetUniform(const char* name, float &variable);
 void SetUniform(const char* name, glm::mat4 &matrix);
 void MoveCamera(float dYaw, float dPitch);
+void ShowFramerate(GLFWwindow* window, double deltaTime, int triangles);
 void OnFrameBufferSize(GLFWwindow* window, int width, int height);
 void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode);
 void OnMouseMove(GLFWwindow* window, double posX, double posY);
-
-GLfloat Quad(int i);			// DEBUGGING
-GLuint QuadIndices(int i);		// DEBUGGING
 
 
 int main()
@@ -61,10 +62,15 @@ int main()
 		return -2;
 	
 	LoadBuffer(terrabumper, vbo, vao, ibo);
-	CompileShaders("source/basicOrbCam.vert", "source/fixedColor.frag");
+	CompileShaders("shaders/basicOrbCam.vert", "shaders/heightShaded.frag");
+	
+	double previousTime = glfwGetTime();
 
 	while (!glfwWindowShouldClose(mainWindow))
 	{
+		double currentTime = glfwGetTime();
+		double deltaTime = currentTime - previousTime;
+
 		glClear(GL_COLOR_BUFFER_BIT);
 		glm::mat4 model(1.f), view(1.f), projection(1.f);
 		MoveCamera(camYaw, camPitch);
@@ -76,6 +82,7 @@ int main()
 		SetUniform("model", model);
 		SetUniform("view", view);
 		SetUniform("projection", projection);
+		SetUniform("invHS", invHS);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, terrabumper.vertexIndex.size(), GL_UNSIGNED_INT, 0);
@@ -83,6 +90,8 @@ int main()
 
 		glfwSwapBuffers(mainWindow);
 		glfwPollEvents();
+		ShowFramerate(mainWindow, deltaTime, terrabumper.triangles);
+		previousTime = currentTime;
 	}
 
 	glDeleteProgram(shaderProgram);
@@ -96,14 +105,14 @@ int main()
 bool Initialize()
 {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4.6);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
 	if (!glfwInit())
 		return false;
 
-	mainWindow = glfwCreateWindow(mainWindowWidth, mainWindowHeight, "BumpLand - Bumpmap to Landscape", NULL, NULL);
+	mainWindow = glfwCreateWindow(mainWindowWidth, mainWindowHeight, mainWindowTitle.c_str(), NULL, NULL);
 	if (!mainWindow)
 	{
 		glfwTerminate();
@@ -130,11 +139,6 @@ bool Initialize()
 
 void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo)
 {
-	//for (int i = 0; i < 12; i++)
-	//	landVertices.push_back(Quad(i));			// DEBUGGING
-	//for (int i = 0; i < 6; i++)
-	//	landIndex.push_back(QuadIndices(i));		// DEBUGGING
-
 	GLfloat* data = &landscape.vertices[0];
 	GLuint* indexData = &landscape.vertexIndex[0];
 
@@ -148,6 +152,7 @@ void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo)
 	glGenBuffers(1, &ibo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, landscape.vertexIndex.size() * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	invHS = (1.f / landscape.heightScale) * 0.0009f;
 }
 
 void CompileShaders(const char* vShader, const char* fShader)
@@ -230,6 +235,23 @@ void ShaderCompilationCheck(unsigned int shader, int type)
 	}
 }
 
+void SetUniform(const char* name, float &variable)
+{
+	int element = -1;
+	for (const auto pair : uniformArrayLocations)
+	{
+		if (pair.first == name)
+			element = pair.second;
+	}
+	if (element < 0)
+	{
+		element = glGetUniformLocation(shaderProgram, name);
+		uniformArrayLocations[name] = element;
+	}
+
+	glUniform1f(element, variable);
+}
+
 void SetUniform(const char* name, glm::mat4 &matrix)
 {
 	int element = -1;
@@ -256,6 +278,29 @@ void MoveCamera(float dYaw, float dPitch)
 	camPosition.x = subjectPos.x + camRadius * cosf(pitchRad) * sinf(yawRad);
 	camPosition.y = subjectPos.y + camRadius * sinf(pitchRad);
 	camPosition.z = subjectPos.z + camRadius * cosf(pitchRad) * cosf(yawRad);
+}
+
+void ShowFramerate(GLFWwindow* window, double deltaTime, int triangles)
+{
+	static int frameCount = 0;
+	static double elapsedSeconds = 0.0;
+
+	elapsedSeconds += deltaTime;
+
+	if (elapsedSeconds > 0.5)
+	{
+		double fps = (double)frameCount / elapsedSeconds;
+
+		std::ostringstream outs;
+		outs.precision(3);
+		outs << std::fixed << mainWindowTitle << "  -  Triangles rendered: " << triangles << "  -  Current FPS: " << fps;
+		glfwSetWindowTitle(window, outs.str().c_str());
+
+		frameCount = 0;
+		elapsedSeconds = 0.0;
+	}
+
+	frameCount++;
 }
 
 void OnFrameBufferSize(GLFWwindow* window, int width, int height)
@@ -298,28 +343,4 @@ void OnMouseMove(GLFWwindow* window, double posX, double posY)
 
 	lastMousePos.x = (float)posX;
 	lastMousePos.y = (float)posY;
-}
-
-// The functions below are for debugging purposes only!
-GLfloat Quad(int i)
-{
-	static GLfloat a[] = {
-		//  X       Y       Z
-			-0.5f,   0.5f,   0.f,
-			0.5f,   0.5f,   0.f,
-			0.5f,   -0.5f,  0.f,
-			-0.5f,  -0.5f,  0.f
-	};
-
-	return a[i];
-}
-
-GLuint QuadIndices(int i)
-{
-	static GLuint a[] = {
-		0, 1, 2,
-		0, 2, 3
-	};
-
-	return a[i];
 }

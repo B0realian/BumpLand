@@ -31,17 +31,11 @@ bool Terrabumper::LoadTGA(const std::string &filename)
 		imageFile.read((char*)&tempContainer, 1);
 		imageData.push_back(tempContainer);
 	}
-	
-	/*std::ofstream imageStream;
-	imageStream.open("logs/imageDebug.log");
-	for (int i = 0; i < imageData.size(); i += 3)
-		imageStream << imageData[i] << " ";
-	imageStream.close();*/
 
 	Terraform(imageData, bytesPerPixel);
 
 	imageFile.close();
-	// SaveFile();			// WARNING!!! This will write some pretty big log files.
+	// SaveFile();			// WARNING!!! This might write some pretty big log files.
 	return true;
 }
 
@@ -112,14 +106,15 @@ void Terrabumper::Terraform(const std::vector<unsigned char> &data, int stride)
 
 void Terrabumper::SaveFile()
 {
+	int width = 10;
 	std::ofstream vertStream;
 	vertStream.open("logs/vertDebug.log");
 	for (int i = 0; i < vertices.size(); i += 3)
-		vertStream << std::setw(8) << vertices[i] << ", " << std::setw(8) << vertices[i + 1] << ", " << std::setw(8) << vertices[i + 2] << ",\n";
+		vertStream << std::setw(width) << vertices[i] << ", " << std::setw(width) << vertices[i + 1] << ", " << std::setw(width) << vertices[i + 2] << ",\n";
 	vertStream.close();
 	std::ofstream indexStream;
 	indexStream.open("logs/indexDebug.log");
 	for (int i = 0; i < vertexIndex.size(); i += 3)
-		indexStream << std::setw(8) << vertexIndex[i] << ", " << std::setw(8) << vertexIndex[i + 1] << ", " << std::setw(8) << vertexIndex[i + 2] << ",\n";
+		indexStream << std::setw(width) << vertexIndex[i] << ", " << std::setw(width) << vertexIndex[i + 1] << ", " << std::setw(width) << vertexIndex[i + 2] << ",\n";
 	indexStream.close();
 }
