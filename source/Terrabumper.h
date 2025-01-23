@@ -9,6 +9,7 @@ class Terrabumper
 {
 public:
 	bool LoadTGA(const std::string &filename);
+	bool LoadTGA(const std::string &filename, int heightFactor);
 
 
 	int imageWidth;

@@ -18,15 +18,18 @@ int mainWindowHeight = 1080;
 int mainWindowWidth = 1920;
 
 GLuint shaderProgram = 0;
-float invHS = 0.f;				// Assigned in LoadBuffer() and set in CompileShaders().
+float invHS = 0.f;				// Assigned in LoadBuffer()
 const int SHADER = 0;
 const int PROGRAM = 1;
 std::map<std::string, int> uniformArrayLocations;
 bool bWireFrameMode = false;
+std::string vertShader = "shaders/basicOrbCam.vert";
+std::string fragShader = "shaders/heightShaded.frag";
 
-const std::string bumpMap = "textures/Mega_Bump.tga";
-const std::string testMap = "textures/checker16.tga";
+std::string bumpMap = "textures/Mega_Bump.tga";
+std::string testMap = "textures/checker32.tga";
 GLuint vbo, vao, ibo;
+int height = 1;
 
 float camYaw = 0.f;
 float camPitch = 0.f;
@@ -41,7 +44,7 @@ glm::vec3 subjectPos = glm::vec3(0.f, 0.f, -50.f);
 bool Initialize();
 void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo);
 void CompileShaders(const char* vShader, const char* fShader);
-std::string FileToString(const std::string& filename);
+std::string ShaderFileToString(const std::string& filename);
 void ShaderCompilationCheck(unsigned int shader, int type);
 void SetUniform(const char* name, float &variable);
 void SetUniform(const char* name, glm::mat4 &matrix);
@@ -50,19 +53,27 @@ void ShowFramerate(GLFWwindow* window, double deltaTime, int triangles);
 void OnFrameBufferSize(GLFWwindow* window, int width, int height);
 void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode);
 void OnMouseMove(GLFWwindow* window, double posX, double posY);
+bool Instructions(int args, std::vector<std::string> arg);
 
 
-int main()
+int main(int argc, char* argv[])
 {
+	std::vector<std::string> a;
+	for (int i = 0; i < argc; i++)
+		a.push_back(argv[i]);
+
+	if (!Instructions(argc, a))
+		return 0;
+
 	if (!Initialize())
 		return -1;
 
 	Terrabumper terrabumper;
-	if (!terrabumper.LoadTGA(bumpMap))
+	if (!terrabumper.LoadTGA(bumpMap, height))
 		return -2;
 	
 	LoadBuffer(terrabumper, vbo, vao, ibo);
-	CompileShaders("shaders/basicOrbCam.vert", "shaders/heightShaded.frag");
+	CompileShaders(vertShader.c_str(), fragShader.c_str());
 	
 	double previousTime = glfwGetTime();
 
@@ -132,6 +143,7 @@ bool Initialize()
 
 	glClearColor(0.05f, 0.f, 0.f, 1.f);
 	glViewport(0, 0, mainWindowWidth, mainWindowHeight);
+	glfwSwapInterval(0);
 	//glEnable(GL_DEPTH_TEST);
 
 	return true;
@@ -157,8 +169,8 @@ void LoadBuffer(Terrabumper landscape, GLuint& vbo, GLuint& vao, GLuint& ibo)
 
 void CompileShaders(const char* vShader, const char* fShader)
 {
-	std::string vsString = FileToString(vShader);
-	std::string fsString = FileToString(fShader);
+	std::string vsString = ShaderFileToString(vShader);
+	std::string fsString = ShaderFileToString(fShader);
 	const char* vsSourcePtr = vsString.c_str();
 	const char* fsSourcePtr = fsString.c_str();
 
@@ -179,7 +191,7 @@ void CompileShaders(const char* vShader, const char* fShader)
 	glDeleteShader(fs);
 }
 
-std::string FileToString(const std::string &filename)
+std::string ShaderFileToString(const std::string &filename)
 {
 	std::stringstream ss;
 	std::ifstream file;
@@ -188,9 +200,7 @@ std::string FileToString(const std::string &filename)
 	{
 		file.open(filename, std::ios::in);
 		if (!file.fail())
-		{
 			ss << file.rdbuf();
-		}
 
 		file.close();
 	}
@@ -322,6 +332,11 @@ void OnKeyDown(GLFWwindow* window, int key, int scancode, int action, int mode)
 		else
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
+
+	if (key == GLFW_KEY_KP_ADD && action == GLFW_PRESS)
+		invHS += 2.f;
+	if (key == GLFW_KEY_KP_SUBTRACT && action == GLFW_PRESS)
+		invHS -= 2.f;
 }
 
 void OnMouseMove(GLFWwindow* window, double posX, double posY)
@@ -343,4 +358,64 @@ void OnMouseMove(GLFWwindow* window, double posX, double posY)
 
 	lastMousePos.x = (float)posX;
 	lastMousePos.y = (float)posY;
+}
+
+bool Instructions(int args, std::vector<std::string> arg)
+{
+	if (args == 1)
+	{
+		std::cout << "Commands for loading:\n" <<
+			"-f followed by filename of bumpmap (only uncompressed .tga is supported currently).\n" <<
+			"-t sets file to be loaded to test map.\n" <<
+			"-s sets viewer to single colour (default is shaded by height).\n" <<
+			"-h followed by a number (1-100) sets height scaling of landscape to that number (default is 1).\n" <<
+			"Example: bumpland -f textures/checker16.tga -h 10 -s\n\n" <<
+			"Commands in viewer:\n" <<
+			"Hold right mouse button and move mouse to zoom in/out.\n" <<
+			"Hold left mouse button and move mouse to rotate object.\n" <<
+			"Press 'W' to toggle wireframe viewing mode.\n" <<
+			"If in heightshaded colour mode, press '+'/'-' on keypad to change brightness.\n" <<
+			"Press 'esc' or close window with mouse to exit.\n\n" <<
+			"Please be aware that large images demand a lot of memory and take a while to process.\n" <<
+			"Example: 4096 x 4096 pixels image requires more than 600 mb and may take in excess of ten seconds to process.\n";
+		return false;
+	}
+
+	int i = 1;
+
+	while (i < args)
+	{
+		if (arg[i] == "-f" && args >= i + 1)
+		{
+			bumpMap = arg[i + 1];
+			i++;
+		}
+		else if (arg[i] == "-f" && args < i + 1)
+		{
+			std::cout << "Please provide filename.\n";
+			return false;
+		}
+		else if (arg[i] == "-s")
+			fragShader = "shaders/fixedColor.frag";
+		else if (arg[i] == "-t")
+			bumpMap = testMap;
+		else if (arg[i] == "-h")
+		{
+			if (args == i)
+				break;
+			std::stringstream ss;
+			ss << arg[i + 1];
+			ss >> height;
+			if (height < 1 || height > 100)
+			{
+				height = 1;
+				std::cout << "-h number must be greater than 0. Numbers greater than 100 not advised.\n";
+			}
+			i++;
+		}
+
+		i++;
+	}
+
+	return true;
 }

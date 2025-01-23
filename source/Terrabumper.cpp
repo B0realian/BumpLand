@@ -3,8 +3,12 @@
 #include <fstream>
 #include <iomanip>
 
-
 bool Terrabumper::LoadTGA(const std::string &filename)
+{
+	return (LoadTGA(filename, 1));
+}
+
+bool Terrabumper::LoadTGA(const std::string &filename, int heightFactor)
 {
 	std::ifstream imageFile;
 	imageFile.open(filename.c_str(), std::ios::binary);
@@ -32,6 +36,7 @@ bool Terrabumper::LoadTGA(const std::string &filename)
 		imageData.push_back(tempContainer);
 	}
 
+	heightScale *= heightFactor;
 	Terraform(imageData, bytesPerPixel);
 
 	imageFile.close();
@@ -77,15 +82,16 @@ void Terrabumper::Terraform(const std::vector<unsigned char> &data, int stride)
 	{
 		for (int z = 0; z < rowLength; z += stride)
 		{
+			float average = ((float)data[z + i] + (float)data[z + i + 1] + (float)data[z + i + 2]) / 3;
 			vertices.push_back((x - halfWidth) / imageWidth);
-			vertices.push_back((float)data[z + i] * heightScale);
+			vertices.push_back(average * heightScale);
 			vertices.push_back((y - halfWidth) / imageWidth);
 			x++;
 		}
 		x = 0;
 		y++;
 	}
-	std::cout << "Vertices length: " << vertices.size() << std::endl;
+	//std::cout << "Vertices length: " << vertices.size() << std::endl;
 
 	for (int i = 0; i < (imageHeight - 1); i++)
 	{
@@ -100,8 +106,8 @@ void Terrabumper::Terraform(const std::vector<unsigned char> &data, int stride)
 		}
 	}
 	triangles = vertexIndex.size() / 3;
-	std::cout << "Index length: " << vertexIndex.size() << std::endl;
-	std::cout << "Amount of triangles: " << triangles << std::endl;
+	//std::cout << "Index length: " << vertexIndex.size() << std::endl;
+	//std::cout << "Amount of triangles: " << triangles << std::endl;
 }
 
 void Terrabumper::SaveFile()
