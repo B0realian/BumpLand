@@ -365,8 +365,8 @@ bool Instructions(int args, std::vector<std::string> arg)
 	if (args == 1)
 	{
 		std::cout << "Commands for loading:\n" <<
-			"-f followed by filename of bumpmap (only uncompressed .tga is supported currently).\n" <<
-			"-t sets file to be loaded to test map.\n" <<
+			"-fm followed by filename of bumpmap (only uncompressed .tga is supported currently).\n" <<
+			"-tm sets file to be loaded to test map.\n" <<
 			"-s sets viewer to single colour (default is shaded by height).\n" <<
 			"-h followed by a number (1-100) sets height scaling of landscape to that number (default is 1).\n" <<
 			"Example: bumpland -f textures/checker16.tga -h 10 -s\n\n" <<
@@ -385,19 +385,19 @@ bool Instructions(int args, std::vector<std::string> arg)
 
 	while (i < args)
 	{
-		if (arg[i] == "-f" && args >= i + 1)
+		if (arg[i] == "-fm" && args >= i + 1)
 		{
 			bumpMap = arg[i + 1];
 			i++;
 		}
-		else if (arg[i] == "-f" && args < i + 1)
+		else if (arg[i] == "-fm" && args < i + 1)
 		{
 			std::cout << "Please provide filename.\n";
 			return false;
 		}
 		else if (arg[i] == "-s")
 			fragShader = "shaders/fixedColor.frag";
-		else if (arg[i] == "-t")
+		else if (arg[i] == "-tm")
 			bumpMap = testMap;
 		else if (arg[i] == "-h")
 		{
